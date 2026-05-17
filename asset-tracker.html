@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>資產累積追蹤器</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   🎨 設計變數 — 你可以在這裡改顏色、字體、圓角等
+   ============================================================ */
+:root {
+  /* 主色調 (按鈕、強調色、進度條) */
+  --color-primary:        #0F6E56;   /* ← 改這裡換主色，例如 #1A56A0 = 深藍 */
+  --color-primary-light:  #E1F5EE;   /* 主色的淡版，用於背景 */
+  --color-primary-dark:   #085041;   /* 主色的深版，用於 hover */
+
+  /* 危險色 (支出、刪除) */
+  --color-danger:         #A32D2D;
+  --color-danger-light:   #FCEBEB;
+
+  /* 警告色 */
+  --color-warning:        #854F0B;
+  --color-warning-light:  #FAEEDA;
+
+  /* 背景色 */
+  --bg-page:              #F4F6F3;   /* ← 改這裡換整體背景 */
+  --bg-card:              #FFFFFF;   /* 卡片背景 */
+  --bg-secondary:         #F0F2EF;   /* 次要背景 (數字方塊等) */
+
+  /* 文字色 */
+  --text-primary:         #1A1A1A;   /* ← 主要文字 */
+  --text-secondary:       #6B7280;   /* 次要文字 */
+  --text-hint:            #9CA3AF;   /* 提示文字 */
+
+  /* 邊框 */
+  --border-color:         #E5E7EB;
+
+  /* 字體 */
+  --font-main:    'Noto Sans TC', sans-serif;   /* ← 改這裡換字體 */
+  --font-number:  'DM Mono', monospace;          /* 數字專用字體 */
+
+  /* 圓角 */
+  --radius-sm:    8px;    /* 小元件 */
+  --radius-md:    12px;   /* 卡片 */
+  --radius-lg:    16px;   /* 大卡片 */
+  --radius-pill:  999px;  /* 膠囊型按鈕 */
+
+  /* 陰影 */
+  --shadow-card:  0 1px 4px rgba(0,0,0,0.06);
+
+  /* 導覽列高度 */
+  --nav-height:   64px;
+}
+
+/* ============================================================
+   基礎 Reset
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: var(--font-main);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  max-width: 480px;      /* 手機/平板最大寬度 */
+  margin: 0 auto;
+  position: relative;
+}
+input, select, button { font-family: var(--font-main); }
+input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+/* ============================================================
+   頁面切換
+   ============================================================ */
+.page { display: none; flex-direction: column; gap: 14px; padding: 20px 16px calc(var(--nav-height) + 20px); min-height: 100vh; }
+.page.active { display: flex; }
+
+/* ============================================================
+   底部導覽列
+   ============================================================ */
+.nav {
+  position: fixed;
+  bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%; max-width: 480px;
+  height: var(--nav-height);
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  z-index: 100;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
+}
+.nav-btn {
+  flex: 1; border: none; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--text-secondary); font-size: 11px; font-family: var(--font-main);
+  transition: color 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-btn .nav-icon { font-size: 22px; line-height: 1; }
+.nav-btn.active { color: var(--color-primary); }
+.nav-btn.active .nav-icon { transform: scale(1.1); }
+
+/* ============================================================
+   頁面標題
+   ============================================================ */
+.page-header { display: flex; align-items: center; gap: 10px; padding: 4px 0 2px; }
+.page-title { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+
+/* ============================================================
+   卡片
+   ============================================================ */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-card);
+}
+.card-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px; }
+
+/* ============================================================
+   表單元件
+   ============================================================ */
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-label { font-size: 13px; color: var(--text-secondary); }
+.form-input {
+  width: 100%; padding: 10px 13px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-size: 15px;
+  transition: border-color 0.2s;
+}
+.form-input:focus { outline: none; border-color: var(--color-primary); }
+.form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ============================================================
+   按鈕
+   ============================================================ */
+.btn-primary {
+  width: 100%; padding: 11px;
+  border: none; border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: #fff; font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: background 0.2s, transform 0.1s;
+}
+.btn-primary:active { transform: scale(0.98); background: var(--color-primary-dark); }
+
+.btn-secondary {
+  padding: 11px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: none; color: var(--text-secondary);
+  font-size: 14px; cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-secondary:hover { background: var(--bg-secondary); }
+
+.btn-add {
+  width: 100%; padding: 11px;
+  border: 1.5px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  background: none; color: var(--color-primary);
+  font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn-add:hover { background: var(--color-primary-light); border-color: var(--color-primary); }
+
+/* ============================================================
+   Tab 切換
+   ============================================================ */
+.tab-row { display: flex; gap: 8px; }
+.tab-btn {
+  padding: 7px 16px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border-color);
+  background: none; color: var(--text-secondary);
+  font-size: 13px; font-family: var(--font-main); cursor: pointer;
+  transition: all 0.2s; display: flex; align-items: center; gap: 5px;
+}
+.tab-btn.active { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+
+/* ============================================================
+   項目列
+   ============================================================ */
+.item-list { display: flex; flex-direction: column; gap: 8px; }
+.item-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 13px;
+  background: var(--bg-card); border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+.item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.item-dot.green { background: var(--color-primary); }
+.item-dot.red   { background: var(--color-danger); }
+.item-info { flex: 1; }
+.item-name { font-size: 14px; font-weight: 500; }
+.item-sub  { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.item-amt  { font-size: 14px; font-weight: 500; font-family: var(--font-number); }
+.item-amt.green { color: var(--color-primary); }
+.item-amt.red   { color: var(--color-danger); }
+.del-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-hint); font-size: 18px; padding: 4px;
+  border-radius: var(--radius-sm); line-height: 1;
+  transition: color 0.2s, background 0.2s;
+}
+.del-btn:hover { color: var(--color-danger); background: var(--color-danger-light); }
+
+/* ============================================================
+   數字卡片格 (指標)
+   ============================================================ */
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.metric {
+  background: var(--bg-secondary); border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+.metric-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.metric-val { font-size: 20px; font-weight: 700; font-family: var(--font-number); }
+.metric-val.green { color: var(--color-primary); }
+.metric-val.red   { color: var(--color-danger); }
+
+/* ============================================================
+   進度條
+   ============================================================ */
+.progress-wrap { margin-top: 6px; }
+.progress-bar { height: 8px; background: var(--bg-secondary); border-radius: var(--radius-pill); overflow: hidden; }
+.progress-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-pill); transition: width 0.5s ease; }
+.progress-label { font-size: 12px; color: var(--text-secondary); margin-top: 5px; }
+
+/* ============================================================
+   大數字顯示
+   ============================================================ */
+.big-num { font-size: 30px; font-weight: 700; font-family: var(--font-number); color: var(--color-primary); line-height: 1.1; }
+.big-num.red { color: var(--color-danger); }
+.big-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+/* ============================================================
+   小計列
+   ============================================================ */
+.subtotal-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; }
+.subtotal-label { font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
+.subtotal-val { font-size: 14px; font-weight: 500; font-family: var(--font-number); }
+.subtotal-val.green { color: var(--color-primary); }
+.subtotal-val.red   { color: var(--color-danger); }
+.divider { height: 1px; background: var(--border-color); margin: 4px 0; }
+.net-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 4px; }
+.net-label { font-size: 15px; font-weight: 700; }
+.net-val { font-size: 20px; font-weight: 700; font-family: var(--font-number); }
+.net-val.green { color: var(--color-primary); }
+.net-val.red   { color: var(--color-danger); }
+
+/* ============================================================
+   徽章
+   ============================================================ */
+.badge {
+  display: inline-block; padding: 3px 10px;
+  border-radius: var(--radius-pill); font-size: 12px; font-weight: 500;
+}
+.badge.green { background: var(--color-primary-light); color: var(--color-primary-dark); }
+.badge.warn  { background: var(--color-warning-light); color: var(--color-warning); }
+
+/* ============================================================
+   提示框
+   ============================================================ */
+.hint-box {
+  padding: 10px 13px; border-radius: var(--radius-sm);
+  font-size: 13px; line-height: 1.6;
+}
+.hint-box.green { background: var(--color-primary-light); color: var(--color-primary-dark); }
+.hint-box.warn  { background: var(--color-warning-light); color: var(--color-warning); }
+.hint-box.danger{ background: var(--color-danger-light); color: var(--color-danger); }
+
+/* ============================================================
+   動畫
+   ============================================================ */
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.page.active .card { animation: fadeIn 0.2s ease both; }
+.page.active .card:nth-child(2) { animation-delay: 0.04s; }
+.page.active .card:nth-child(3) { animation-delay: 0.08s; }
+.page.active .card:nth-child(4) { animation-delay: 0.12s; }
+
+/* ============================================================
+   RWD — 平板以上稍微加大
+   ============================================================ */
+@media (min-width: 400px) {
+  .page { padding: 24px 20px calc(var(--nav-height) + 24px); }
+  .big-num { font-size: 34px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===================== 頁面一：目標設定 ===================== -->
+<div class="page active" id="page-goal">
+
+  <div class="page-header">
+    <span style="font-size:26px">🎯</span>
+    <h1 class="page-title">目標設定</h1>
+  </div>
+
+  <!-- 資產目標 -->
+  <div class="card">
+    <p class="card-title">資產目標</p>
+    <div class="form-group">
+      <label class="form-label">目標金額（新台幣）</label>
+      <input class="form-input" type="number" id="goal-amount" placeholder="例：10000" min="1" value="10000" oninput="calc()">
+    </div>
+  </div>
+
+  <!-- 目前資產 -->
+  <div class="card">
+    <p class="card-title">目前已有資產</p>
+    <div class="form-group">
+      <label class="form-label">目前存款（新台幣）</label>
+      <input class="form-input" type="number" id="current-savings" placeholder="例：0" min="0" value="0" oninput="calc()">
+    </div>
+    <div class="progress-wrap" style="margin-top:14px">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <p class="progress-label" id="progress-pct">0% 完成</p>
+    </div>
+  </div>
+
+  <!-- 目標日期 -->
+  <div class="card">
+    <p class="card-title">目標達成日期</p>
+    <div class="form-group">
+      <label class="form-label">預計達成日期</label>
+      <input class="form-input" type="date" id="goal-date" oninput="calc()">
+    </div>
+    <div style="height:10px"></div>
+    <div id="days-left-display" class="hint-box green" style="display:none"></div>
+  </div>
+
+</div>
+
+<!-- ===================== 頁面二：收支管理 ===================== -->
+<div class="page" id="page-cash">
+
+  <div class="page-header">
+    <span style="font-size:26px">💰</span>
+    <h1 class="page-title">收支管理</h1>
+  </div>
+
+  <div class="tab-row">
+    <button class="tab-btn active" id="tab-income"  onclick="switchTab('income')">＋ 收入</button>
+    <button class="tab-btn"        id="tab-expense" onclick="switchTab('expense')">－ 支出</button>
+  </div>
+
+  <!-- 收入區塊 -->
+  <div id="income-section">
+    <div class="item-list" id="income-list"></div>
+    <div style="height:2px"></div>
+
+    <!-- 新增收入表單 (預設隱藏) -->
+    <div class="card" id="add-income-form" style="display:none;flex-direction:column;gap:12px">
+      <p style="font-size:14px;font-weight:700">新增收入項目</p>
+      <div class="form-group">
+        <label class="form-label">項目名稱</label>
+        <input class="form-input" type="text" id="in-name" placeholder="例：薪水">
+      </div>
+      <div class="form-2col">
+        <div class="form-group">
+          <label class="form-label">金額（元）</label>
+          <input class="form-input" type="number" id="in-amt" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">頻率</label>
+          <select class="form-input" id="in-freq">
+            <option value="daily">每日</option>
+            <option value="weekly" selected>每週</option>
+            <option value="monthly">每月</option>
+            <option value="yearly">每年</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:1" onclick="addItem('income')">✓ 確認新增</button>
+        <button class="btn-secondary" onclick="cancelAdd('income')">取消</button>
+      </div>
+    </div>
+
+    <button class="btn-add" id="show-add-income" onclick="showAdd('income')">＋ 新增收入</button>
+  </div>
+
+  <!-- 支出區塊 (預設隱藏) -->
+  <div id="expense-section" style="display:none;flex-direction:column;gap:10px">
+    <div class="item-list" id="expense-list"></div>
+
+    <!-- 新增支出表單 -->
+    <div class="card" id="add-expense-form" style="display:none;flex-direction:column;gap:12px">
+      <p style="font-size:14px;font-weight:700">新增支出項目</p>
+      <div class="form-group">
+        <label class="form-label">項目名稱</label>
+        <input class="form-input" type="text" id="ex-name" placeholder="例：房租">
+      </div>
+      <div class="form-2col">
+        <div class="form-group">
+          <label class="form-label">金額（元）</label>
+          <input class="form-input" type="number" id="ex-amt" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">頻率</label>
+          <select class="form-input" id="ex-freq">
+            <option value="daily">每日</option>
+            <option value="weekly" selected>每週</option>
+            <option value="monthly">每月</option>
+            <option value="yearly">每年</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:1" onclick="addItem('expense')">✓ 確認新增</button>
+        <button class="btn-secondary" onclick="cancelAdd('expense')">取消</button>
+      </div>
+    </div>
+
+    <button class="btn-add" id="show-add-expense" onclick="showAdd('expense')">＋ 新增支出</button>
+  </div>
+
+</div>
+
+<!-- ===================== 頁面三：財務總覽 ===================== -->
+<div class="page" id="page-summary">
+
+  <div class="page-header">
+    <span style="font-size:26px">📊</span>
+    <h1 class="page-title">財務總覽</h1>
+  </div>
+
+  <!-- 頻率切換 -->
+  <div class="tab-row">
+    <button class="tab-btn active" id="sum-tab-weekly"  onclick="switchSumTab('weekly')">每週</button>
+    <button class="tab-btn"        id="sum-tab-monthly" onclick="switchSumTab('monthly')">每月</button>
+    <button class="tab-btn"        id="sum-tab-yearly"  onclick="switchSumTab('yearly')">每年</button>
+  </div>
+
+  <!-- 小計卡片 -->
+  <div class="card">
+    <p class="card-title" id="subtotal-period-label">每週小計</p>
+    <div class="subtotal-row">
+      <span class="subtotal-label">▲ 收入合計</span>
+      <span class="subtotal-val green" id="sum-income">NT$0</span>
+    </div>
+    <div class="subtotal-row">
+      <span class="subtotal-label">▼ 支出合計</span>
+      <span class="subtotal-val red" id="sum-expense">NT$0</span>
+    </div>
+    <div class="divider"></div>
+    <div class="net-row">
+      <span class="net-label">淨儲蓄</span>
+      <span class="net-val green" id="sum-net">NT$0</span>
+    </div>
+  </div>
+
+  <!-- 目標進度 -->
+  <div class="card">
+    <p class="card-title">距離目標還差多少</p>
+    <div class="metric-grid">
+      <div class="metric">
+        <p class="metric-label">還需存</p>
+        <p class="metric-val green" id="need-amount">NT$0</p>
+      </div>
+      <div class="metric">
+        <p class="metric-label">達成進度</p>
+        <p class="metric-val green" id="pct-done">0%</p>
+      </div>
+      <div class="metric">
+        <p class="metric-label">預計週數</p>
+        <p class="metric-val" id="weeks-left">—</p>
+      </div>
+      <div class="metric">
+        <p class="metric-label">預計天數</p>
+        <p class="metric-val" id="days-left">—</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 預計達成日期 -->
+  <div class="card">
+    <p class="card-title">預計達成日期</p>
+    <p class="big-num" id="projected-date">請先輸入資料</p>
+    <p class="big-sub" id="date-compare"></p>
+    <div style="height:8px"></div>
+    <div id="date-hint" style="display:none"></div>
+  </div>
+
+  <!-- 收入明細 -->
+  <div class="card">
+    <p class="card-title">收入明細</p>
+    <div id="sum-income-list"><p style="font-size:13px;color:var(--text-hint)">尚未新增收入</p></div>
+  </div>
+
+  <!-- 支出明細 -->
+  <div class="card">
+    <p class="card-title">支出明細</p>
+    <div id="sum-expense-list"><p style="font-size:13px;color:var(--text-hint)">尚未新增支出</p></div>
+  </div>
+
+</div>
+
+<!-- ===================== 底部導覽列 ===================== -->
+<nav class="nav">
+  <button class="nav-btn active" id="nav-goal" onclick="goPage('goal')">
+    <span class="nav-icon">🎯</span>目標設定
+  </button>
+  <button class="nav-btn" id="nav-cash" onclick="goPage('cash')">
+    <span class="nav-icon">💰</span>收支管理
+  </button>
+  <button class="nav-btn" id="nav-summary" onclick="goPage('summary')">
+    <span class="nav-icon">📊</span>財務總覽
+  </button>
+</nav>
+
+<!-- ===================== JavaScript ===================== -->
+<script>
+// ── 資料 ────────────────────────────────────────────────────
+var incomes  = [];
+var expenses = [];
+var sumPeriod = 'weekly';
+
+// ── 初始化預設日期 (明年今天) ────────────────────────────────
+var today = new Date();
+var defDate = new Date(today);
+defDate.setFullYear(defDate.getFullYear() + 1);
+document.getElementById('goal-date').value = defDate.toISOString().slice(0, 10);
+
+// ── 工具函式 ─────────────────────────────────────────────────
+function fmt(n) {
+  return 'NT$' + Math.round(n).toLocaleString('zh-TW');
+}
+function toWeekly(amt, freq) {
+  if (freq === 'daily')   return amt * 7;
+  if (freq === 'weekly')  return amt;
+  if (freq === 'monthly') return amt * 12 / 52;
+  if (freq === 'yearly')  return amt / 52;
+  return 0;
+}
+function freqLabel(freq) {
+  return { daily:'每日', weekly:'每週', monthly:'每月', yearly:'每年' }[freq];
+}
+function periodMultiplier(p) {
+  return { weekly:1, monthly:52/12, yearly:52 }[p];
+}
+function periodLabel(p) {
+  return { weekly:'每週', monthly:'每月', yearly:'每年' }[p];
+}
+function dateStr(d) {
+  return d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
+}
+
+// ── 頁面切換 ─────────────────────────────────────────────────
+function goPage(p) {
+  ['goal','cash','summary'].forEach(function(x) {
+    document.getElementById('page-'+x).classList.remove('active');
+    document.getElementById('nav-'+x).classList.remove('active');
+  });
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('nav-'+p).classList.add('active');
+  if (p === 'summary') calc();
+}
+
+// ── Tab 切換 ─────────────────────────────────────────────────
+function switchTab(t) {
+  document.getElementById('income-section').style.display  = t === 'income'  ? 'flex' : 'none';
+  document.getElementById('expense-section').style.display = t === 'expense' ? 'flex' : 'none';
+  document.getElementById('income-section').style.flexDirection = 'column';
+  document.getElementById('tab-income').classList.toggle('active',  t === 'income');
+  document.getElementById('tab-expense').classList.toggle('active', t === 'expense');
+}
+function switchSumTab(p) {
+  sumPeriod = p;
+  ['weekly','monthly','yearly'].forEach(function(x) {
+    document.getElementById('sum-tab-'+x).classList.toggle('active', x === p);
+  });
+  calc();
+}
+
+// ── 新增表單顯示 ─────────────────────────────────────────────
+function showAdd(type) {
+  document.getElementById('add-'+type+'-form').style.cssText = 'display:flex;flex-direction:column;gap:12px';
+  document.getElementById('show-add-'+type).style.display = 'none';
+}
+function cancelAdd(type) {
+  document.getElementById('add-'+type+'-form').style.display = 'none';
+  document.getElementById('show-add-'+type).style.display = 'flex';
+}
+
+// ── 新增項目 ─────────────────────────────────────────────────
+function addItem(type) {
+  var n, a, f;
+  if (type === 'income') {
+    n = document.getElementById('in-name').value.trim() || '收入';
+    a = parseFloat(document.getElementById('in-amt').value) || 0;
+    f = document.getElementById('in-freq').value;
+    incomes.push({ name:n, amount:a, freq:f });
+    document.getElementById('in-name').value = '';
+    document.getElementById('in-amt').value  = '';
+  } else {
+    n = document.getElementById('ex-name').value.trim() || '支出';
+    a = parseFloat(document.getElementById('ex-amt').value) || 0;
+    f = document.getElementById('ex-freq').value;
+    expenses.push({ name:n, amount:a, freq:f });
+    document.getElementById('ex-name').value = '';
+    document.getElementById('ex-amt').value  = '';
+  }
+  cancelAdd(type);
+  renderLists();
+  calc();
+}
+
+// ── 刪除項目 ─────────────────────────────────────────────────
+function deleteItem(type, idx) {
+  if (type === 'income') incomes.splice(idx, 1);
+  else expenses.splice(idx, 1);
+  renderLists();
+  calc();
+}
+
+// ── 渲染清單 ─────────────────────────────────────────────────
+function renderLists() {
+  var il = document.getElementById('income-list');
+  var el = document.getElementById('expense-list');
+  il.innerHTML = '';
+  el.innerHTML = '';
+
+  if (incomes.length === 0) {
+    il.innerHTML = '<p style="font-size:13px;color:var(--text-hint);padding:4px 0">尚未新增收入</p>';
+  }
+  incomes.forEach(function(it, i) {
+    var d = document.createElement('div');
+    d.className = 'item-row';
+    d.innerHTML =
+      '<span class="item-dot green"></span>' +
+      '<div class="item-info"><p class="item-name">'+it.name+'</p><p class="item-sub">'+freqLabel(it.freq)+'</p></div>' +
+      '<span class="item-amt green">+'+fmt(it.amount)+'</span>' +
+      '<button class="del-btn" onclick="deleteItem(\'income\','+i+')" title="刪除">✕</button>';
+    il.appendChild(d);
+  });
+
+  if (expenses.length === 0) {
+    el.innerHTML = '<p style="font-size:13px;color:var(--text-hint);padding:4px 0">尚未新增支出</p>';
+  }
+  expenses.forEach(function(it, i) {
+    var d = document.createElement('div');
+    d.className = 'item-row';
+    d.innerHTML =
+      '<span class="item-dot red"></span>' +
+      '<div class="item-info"><p class="item-name">'+it.name+'</p><p class="item-sub">'+freqLabel(it.freq)+'</p></div>' +
+      '<span class="item-amt red">-'+fmt(it.amount)+'</span>' +
+      '<button class="del-btn" onclick="deleteItem(\'expense\','+i+')" title="刪除">✕</button>';
+    el.appendChild(d);
+  });
+}
+
+// ── 主計算 ───────────────────────────────────────────────────
+function calc() {
+  var goal    = parseFloat(document.getElementById('goal-amount').value)    || 0;
+  var current = parseFloat(document.getElementById('current-savings').value) || 0;
+  var dateVal = document.getElementById('goal-date').value;
+
+  // 進度條
+  var pct = goal > 0 ? Math.min(100, Math.round(current / goal * 100)) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '% 完成';
+
+  // 剩餘天數顯示
+  var dld = document.getElementById('days-left-display');
+  if (dateVal) {
+    var gDate = new Date(dateVal);
+    var diff  = Math.round((gDate - today) / 86400000);
+    dld.style.display = 'block';
+    dld.textContent = '📅 距離 ' + dateStr(gDate) + ' 還有 ' + Math.max(0, diff) + ' 天';
+    dld.className = 'hint-box ' + (diff >= 0 ? 'green' : 'warn');
+  } else {
+    dld.style.display = 'none';
+  }
+
+  // 每週收支
+  var weeklyIncome  = incomes.reduce(function(s,it){ return s + toWeekly(it.amount, it.freq); }, 0);
+  var weeklyExpense = expenses.reduce(function(s,it){ return s + toWeekly(it.amount, it.freq); }, 0);
+  var weeklyNet     = weeklyIncome - weeklyExpense;
+  var m = periodMultiplier(sumPeriod);
+
+  // 小計區
+  document.getElementById('subtotal-period-label').textContent = periodLabel(sumPeriod) + '小計';
+  document.getElementById('sum-income').textContent  = fmt(weeklyIncome  * m);
+  document.getElementById('sum-expense').textContent = fmt(weeklyExpense * m);
+  document.getElementById('sum-net').textContent     = fmt(weeklyNet     * m);
+  var netEl = document.getElementById('sum-net');
+  netEl.className = 'net-val ' + (weeklyNet >= 0 ? 'green' : 'red');
+
+  // 指標
+  var need = Math.max(0, goal - current);
+  document.getElementById('need-amount').textContent = fmt(need);
+  document.getElementById('pct-done').textContent    = pct + '%';
+
+  // 預計達成
+  var projEl   = document.getElementById('projected-date');
+  var compareEl = document.getElementById('date-compare');
+  var hintEl   = document.getElementById('date-hint');
+
+  if (weeklyNet > 0 && goal > 0) {
+    var weeksNeeded = need / weeklyNet;
+    var daysNeeded  = Math.ceil(weeksNeeded * 7);
+    document.getElementById('weeks-left').textContent = Math.ceil(weeksNeeded) + ' 週';
+    document.getElementById('days-left').textContent  = daysNeeded + ' 天';
+
+    var projDate = new Date(today);
+    projDate.setDate(projDate.getDate() + daysNeeded);
+    projEl.textContent = dateStr(projDate);
+    projEl.className   = 'big-num';
+
+    if (dateVal) {
+      var gd   = new Date(dateVal);
+      var diff2 = Math.round((gd - projDate) / 86400000);
+      if (diff2 >= 0) {
+        compareEl.textContent = '比目標提早 ' + diff2 + ' 天 🎉';
+        hintEl.className = 'hint-box green';
+        hintEl.textContent = '✅ 以目前存款速度，你能在目標日期前達成！';
+      } else {
+        compareEl.textContent = '比目標延遲 ' + Math.abs(diff2) + ' 天';
+        hintEl.className = 'hint-box warn';
+        hintEl.textContent = '⚠️ 目前速度略慢，建議增加收入或減少支出。';
+      }
+      hintEl.style.display = 'block';
+    } else {
+      compareEl.textContent = '';
+      hintEl.style.display  = 'none';
+    }
+  } else if (incomes.length > 0 && weeklyNet <= 0) {
+    document.getElementById('weeks-left').textContent = '—';
+    document.getElementById('days-left').textContent  = '—';
+    projEl.textContent = '無法達成';
+    projEl.className   = 'big-num red';
+    compareEl.textContent = '';
+    hintEl.className = 'hint-box danger';
+    hintEl.textContent = '⛔ 支出大於或等於收入，目前無法累積資產。請調整收支。';
+    hintEl.style.display = 'block';
+  } else {
+    document.getElementById('weeks-left').textContent = '—';
+    document.getElementById('days-left').textContent  = '—';
+    projEl.textContent = '請先輸入收支資料';
+    projEl.className   = 'big-num';
+    compareEl.textContent = '';
+    hintEl.style.display  = 'none';
+  }
+
+  // 總覽明細
+  var sil = document.getElementById('sum-income-list');
+  var sel = document.getElementById('sum-expense-list');
+  sil.innerHTML = incomes.length  ? '' : '<p style="font-size:13px;color:var(--text-hint)">尚未新增收入</p>';
+  sel.innerHTML = expenses.length ? '' : '<p style="font-size:13px;color:var(--text-hint)">尚未新增支出</p>';
+
+  incomes.forEach(function(it) {
+    var d = document.createElement('div');
+    d.className = 'subtotal-row';
+    d.innerHTML =
+      '<span class="subtotal-label"><span class="item-dot green" style="display:inline-block;margin-right:6px;vertical-align:middle"></span>'+it.name+
+      ' <small style="color:var(--text-hint)">('+freqLabel(it.freq)+')</small></span>'+
+      '<span class="subtotal-val green">'+fmt(toWeekly(it.amount,it.freq)*m)+'</span>';
+    sil.appendChild(d);
+  });
+  expenses.forEach(function(it) {
+    var d = document.createElement('div');
+    d.className = 'subtotal-row';
+    d.innerHTML =
+      '<span class="subtotal-label"><span class="item-dot red" style="display:inline-block;margin-right:6px;vertical-align:middle"></span>'+it.name+
+      ' <small style="color:var(--text-hint)">('+freqLabel(it.freq)+')</small></span>'+
+      '<span class="subtotal-val red">'+fmt(toWeekly(it.amount,it.freq)*m)+'</span>';
+    sel.appendChild(d);
+  });
+}
+
+// 初始化
+renderLists();
+calc();
+</script>
+</body>
+</html>
